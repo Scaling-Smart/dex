@@ -817,6 +817,40 @@ func TestHandleTokenExchange(t *testing.T) {
 	}
 }
 
+func TestHandleClientCredentials(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	httpServer, s := newTestServer(ctx, t, func(c *Config) {
+		c.Storage.CreateClient(ctx, storage.Client{
+			ID:     "client_1",
+			Secret: "secret_1",
+		})
+	})
+	defer httpServer.Close()
+
+	vals := url.Values{}
+	vals.Set("grant_type", grantTypeClientCredentials)
+	vals.Set("scope", "openid")
+	vals.Set("client_id", "client_1")
+	vals.Set("client_secret", "secret_1")
+
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, httpServer.URL+"/token", strings.NewReader(vals.Encode()))
+	req.Header.Set("content-type", "application/x-www-form-urlencoded")
+
+	s.handleToken(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
+	require.Equal(t, "application/json", rr.Result().Header.Get("content-type"))
+
+	var res accessTokenResponse
+	err := json.NewDecoder(rr.Result().Body).Decode(&res)
+	require.NoError(t, err)
+	require.NotEmpty(t, res.AccessToken)
+	require.NotEmpty(t, res.IDToken)
+}
+
 func setNonEmpty(vals url.Values, key, value string) {
 	if value != "" {
 		vals.Set(key, value)

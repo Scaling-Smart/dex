@@ -237,6 +237,7 @@ func newServer(ctx context.Context, c Config, rotationStrategy rotationStrategy)
 	allSupportedGrants := map[string]bool{
 		grantTypeAuthorizationCode: true,
 		grantTypeRefreshToken:      true,
+		grantTypeClientCredentials: true,
 		grantTypeDeviceCode:        true,
 		grantTypeTokenExchange:     true,
 	}
