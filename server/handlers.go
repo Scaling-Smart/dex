@@ -860,6 +860,8 @@ func (s *Server) handleToken(w http.ResponseWriter, r *http.Request) {
 		s.withClientFromStorage(w, r, s.handleAuthCode)
 	case grantTypeRefreshToken:
 		s.withClientFromStorage(w, r, s.handleRefreshToken)
+	case grantTypeClientCredentials:
+		s.withClientFromStorage(w, r, s.handleClientCredentials)
 	case grantTypePassword:
 		s.withClientFromStorage(w, r, s.handlePasswordGrant)
 	case grantTypeTokenExchange:
@@ -1344,6 +1346,35 @@ func (s *Server) handlePasswordGrant(w http.ResponseWriter, r *http.Request, cli
 	}
 
 	resp := s.toAccessTokenResponse(idToken, accessToken, refreshToken, expiry)
+	s.writeAccessToken(w, resp)
+}
+
+func (s *Server) handleClientCredentials(w http.ResponseWriter, r *http.Request, client storage.Client) {
+	ctx := r.Context()
+
+	scopes := strings.Fields(r.PostFormValue("scope"))
+
+	claims := storage.Claims{
+		UserID:            client.ID,
+		Username:          client.ID,
+		PreferredUsername: client.ID,
+	}
+
+	accessToken, _, err := s.newAccessToken(ctx, client.ID, claims, scopes, "", "")
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "client credentials failed to create new access token", "err", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	idToken, expiry, err := s.newIDToken(ctx, client.ID, claims, scopes, "", accessToken, "", "")
+	if err != nil {
+		s.logger.ErrorContext(r.Context(), "client credentials failed to create new ID token", "err", err)
+		s.tokenErrHelper(w, errServerError, "", http.StatusInternalServerError)
+		return
+	}
+
+	resp := s.toAccessTokenResponse(idToken, accessToken, "", expiry)
 	s.writeAccessToken(w, resp)
 }
 
